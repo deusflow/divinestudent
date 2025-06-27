@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studerende Information</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="icon" type="image/png" href="/static/img/favicon.png">
+</head>
+<body>
+    <div class="anime-bg90s">
+        <div class="anime-panel panel-90s">
+            <img src="/static/img/logo.png" class="main-logo-90s" alt="Logo">
+            <h1 class="anime-header">Studerende Information <span class="anime-speedline"></span></h1>
+            <div class="panel-content">
+                <button id="login-btn" class="btn-anime">Log ind</button>
+                <button id="add-student-btn" class="btn-anime" style="display:none;">Tilføj studerende</button>
+                <button id="logout-btn" class="btn-anime" style="display:none;">Log ud</button>
+                <table id="students-table">
+                    <thead>
+                    <tr>
+                        <th>Lærlingens navn</th>
+                        <th>Fagområde</th>
+                        <th>Kontaktoplysninger</th>
+                        <th>Har opgave</th>
+                        <th>Borgernavn</th>
+                        <th>Tlf. / Mail</th>
+                        <th>Adresse</th>
+                        <th>Opgavetype</th>
+                        <th>Opgave udført</th>
+                        <th>Aftaledato</th>
+                        <th>Tidsrum</th>
+                        <th>Noter</th>
+                        <th>Aktiv</th>
+                        <th>Handlinger</th>
+                    </tr>
+                    </thead>
+                    <tbody id="students-body"></tbody>
+                </table>
+
+                <!-- Login Modal -->
+                <div id="login-modal" class="modal">
+                    <div class="modal-content">
+                        <span class="close">×</span>
+                        <h2>Log ind</h2>
+                        <div>
+                            <label>Brugernavn:</label>
+                            <input type="text" id="username" value="admin">
+                            <label>Adgangskode:</label>
+                            <input type="password" id="password" value="admin">
+                            <button id="login-submit">Log ind</button>
+                            <p id="login-error" style="color:red;"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add/Edit Student Modal -->
+                <div id="student-modal" class="modal">
+                    <div class="modal-content">
+                        <spam class="close">×</spam>
+                        <h2 id="student-modal-title">Tilføj studerende</h2>
+                        <div>
+                            <label>Lærlingens navn*:</label>
+                            <input type="text" id="name">
+                            <label>Fagområde*:</label>
+                            <input type="text" id="field_of_study">
+                            <label>Kontaktoplysninger (e-mail)*:</label>
+                            <input type="email" id="email">
+                            <label>Har opgave:</label>
+                            <input type="checkbox" id="has_assignment">
+                            <label>Borgernavn:</label>
+                            <input type="text" id="citizen_name">
+                            <label>Tlf. / Mail:</label>
+                            <input type="text" id="contact_phone_email">
+                            <label>Adresse:</label>
+                            <input type="text" id="address">
+                            <label>Opgavetype:</label>
+                            <input type="text" id="assignment_type">
+                            <label>Opgave udført:</label>
+                            <input type="checkbox" id="assignment_completed">
+                            <label>Aftaledato:</label>
+                            <input type="date" id="agreement_date">
+                            <label>Tidsrum:</label>
+                            <input type="text" id="time_slot">
+                            <label>Noter:</label>
+                            <textarea id="notes"></textarea>
+                            <label>Aktiv:</label>
+                            <input type="checkbox" id="active">
+                            <button id="student-submit">Gem</button>
+                            <p id="student-error" style="color:red;"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <script src="/static/js/main.js"></script>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,232 @@
+/* Modern iOS-like accent color */
+:root {
+    --accent: #007aff;
+    --accent-hover: #005ecb;
+    --danger: #ff3b30;
+    --success: #34c759;
+    --bg: #f9f9fb;
+    --panel: #fff;
+    --shadow: 0 4px 24px rgba(0,0,0,0.07);
+    --radius: 16px;
+    --transition: 0.18s cubic-bezier(.4,0,.2,1);
+}
+
+/* Стильный современный шрифт */
+body {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    background: var(--bg);
+    color: #111;
+    margin: 20px;
+    max-width: 100%;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.main-logo-90s {
+    display: block;
+    margin: 0 auto 1.5rem auto;
+    width: 120px;
+    transition: transform 0.7s cubic-bezier(.4,0,.2,1), filter 0.7s cubic-bezier(.4,0,.2,1);
+    filter: drop-shadow(0 2px 12px rgba(0,122,255,0.08));
+    will-change: transform;
+    animation: logo-stretch-in 0.7s cubic-bezier(0.4, 0.2, 0.2, 1);
+    transform-origin: center center;
+}
+
+@keyframes logo-stretch-in {
+    0% {
+        transform: scale(1, 1);
+    }
+    40% {
+        transform: scale(1.2, 0.8);
+    }
+    60% {
+        transform: scale(0.95, 1.1);
+    }
+    80% {
+        transform: scale(1.05, 0.97);
+    }
+    100% {
+        transform: scale(1, 1);
+    }
+}
+
+/* Заголовок — строго и модно */
+h1 {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 600;
+    color: #000;
+    margin-bottom: 20px;
+}
+
+/* Кнопки — строгие, с плавным ховером */
+button {
+    padding: 10px 20px;
+    margin: 5px;
+    cursor: pointer;
+    background-color: #111;
+    color: #fff;
+    border: 1px solid #333;
+    border-radius: 6px;
+    transition: all 0.25s ease-in-out;
+}
+
+button:hover {
+    background-color: #333;
+    transform: scale(1.02);
+}
+
+.btn-anime {
+    background: #fff;
+    color: #111;
+    border: 1.5px solid #222;
+    border-radius: 999px;
+    padding: 0.7em 1.6em;
+    font-size: 1.05rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    cursor: pointer;
+    margin: 0.3em 0.5em 0.3em 0;
+    transition: background var(--transition), box-shadow var(--transition), color var(--transition), border var(--transition), transform var(--transition);
+}
+.btn-anime:hover, .btn-anime:focus {
+    background: #222;
+    color: #fff;
+    border-color: #222;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.13);
+    transform: translateY(-2px) scale(1.04);
+    outline: none;
+}
+
+.btn-anime:active {
+    background: #111;
+    color: #fff;
+    border-color: #111;
+    transform: scale(0.98);
+}
+
+/* Таблица — строгая рамка и приятная структура */
+#students-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    margin-top: 1.5rem;
+    font-size: 0.98rem;
+}
+
+#students-table th, #students-table td {
+    padding: 0.7em 0.6em;
+    text-align: left;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+#students-table th {
+    background: #f5f7fa;
+    color: #111;
+    font-weight: 700;
+    font-size: 1.01rem;
+}
+
+#students-table tbody td {
+    font-weight: 600;
+    color: #111;
+}
+
+#students-table tbody tr:hover {
+    background: #e5e5e5;
+    transition: background var(--transition);
+}
+
+/* Модальное окно с затемнением и стилем */
+.modal {
+    background: rgba(0,0,0,0.18);
+    position: fixed;
+    z-index: 1000;
+    left: 0; top: 0; right: 0; bottom: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s;
+}
+
+.modal-content {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 2.2rem 2rem 1.5rem 2rem;
+    min-width: 320px;
+    max-width: 95vw;
+    position: relative;
+    animation: popIn 0.35s cubic-bezier(.4,0,.2,1);
+}
+
+.close {
+    position: absolute;
+    right: 1.2rem;
+    top: 1.2rem;
+    font-size: 1.7rem;
+    color: #aaa;
+    cursor: pointer;
+    transition: color var(--transition);
+}
+
+.close:hover {
+    color: var(--accent);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes popIn {
+    0% { transform: scale(0.95); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Инпуты и текстовые поля — минимализм и чёткость */
+input, textarea, select {
+    width: 100%;
+    font-size: 1rem;
+    background-color: #fafafa;
+    color: #111;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 0.5em 0.8em;
+    margin-bottom: 0.7em;
+    transition: border var(--transition), box-shadow var(--transition);
+}
+
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,122,255,0.09);
+}
+
+/* Метки */
+label {
+    font-weight: 500;
+    font-size: 0.95rem;
+    color: #222;
+    margin-bottom: 0.2em;
+    display: block;
+}
+
+/* Адаптив для таблицы */
+@media (max-width: 768px) {
+    #students-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    .anime-panel.panel-90s {
+        padding: 1.2rem 0.5rem;
+    }
+    .modal-content {
+        padding: 1.2rem 0.7rem 1rem 0.7rem;
+    }
+}

@@ -1,0 +1,42 @@
+# Go build artifacts
+/backend/bin/
+/backend/*.exe
+/backend/*.exe~
+/backend/*.dll
+/backend/*.so
+/backend/*.dylib
+/backend/*.test
+/backend/*.out
+
+# Go workspace file
+/go.work
+/go.work.sum
+
+# Go module cache
+/pkg/
+
+# Dependency directories
+node_modules/
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Frontend build artifacts (if any)
+dist/
+build/
+
