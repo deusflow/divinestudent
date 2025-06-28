@@ -4,7 +4,10 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
+	"log"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +15,14 @@ import (
 	_ "github.com/lib/pq" // postgres driver
 	"golang.org/x/crypto/bcrypt"
 )
+
+// remove old refresh tokens
+func cleanupExpiredRefreshTokens() {
+	_, err := db.Exec("DELETE FROM refresh_tokens WHERE expires_at < now()")
+	if err != nil {
+		log.Println("Error clearing refresh tokens:", err)
+	}
+}
 
 var (
 	db        *sql.DB
@@ -43,6 +54,45 @@ type Student struct {
 	Active              *bool      `json:"active"`
 }
 
+// MarshalJSON custom JSON output for stud to format agreementdata as YYYY-MM-DD
+func (s *Student) MarshalJSON() ([]byte, error) {
+	type Alias Student
+	aux := struct {
+		AgreementDate string `json:"agreement_date,omitempty"`
+		Alias
+	}{
+		Alias: *(*Alias)(s),
+	}
+	if s.AgreementDate != nil {
+		aux.AgreementDate = s.AgreementDate.Format("2006-01-02")
+	}
+	return json.Marshal(aux)
+}
+
+// UnmarshalJSON : custom JSON input for Student to parse AgreementDate from YYYY-MM-DD
+func (s *Student) UnmarshalJSON(data []byte) error {
+	type Alias Student
+	aux := &struct {
+		AgreementDate string `json:"agreement_date"`
+		*Alias
+	}{
+		Alias: (*Alias)(s),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.AgreementDate != "" {
+		t, err := time.Parse("2006-01-02", aux.AgreementDate)
+		if err != nil {
+			return err
+		}
+		s.AgreementDate = &t
+	} else {
+		s.AgreementDate = nil
+	}
+	return nil
+}
+
 func main() {
 	// connect to db
 	var err error
@@ -54,6 +104,17 @@ func main() {
 	if err = db.Ping(); err != nil {
 		panic(err)
 	}
+	db.SetMaxOpenConns(25)                 // Максимум 25 одновременных соединений с базой
+	db.SetMaxIdleConns(25)                 // Максимум 25 соединений может простаивать без работы
+	db.SetConnMaxLifetime(5 * time.Minute) // Каждое соединение живёт не больше 5 минут
+	cleanupExpiredRefreshTokens()
+
+	go func() {
+		for {
+			cleanupExpiredRefreshTokens()
+			time.Sleep(24 * time.Hour) // чистить раз в сутки токены
+		}
+	}()
 
 	r := gin.Default() // router
 	// serve static
@@ -120,11 +181,16 @@ func login(c *gin.Context) {
 
 	// make refresh token
 	rtb := make([]byte, 32)
-	rand.Read(rtb)
+	if _, err := rand.Read(rtb); err != nil {
+		log.Println("Ошибка генерации refresh-токена:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error"})
+		return
+	}
 	refreshToken := hex.EncodeToString(rtb)
 	expiresAt := time.Now().Add(7 * 24 * time.Hour)
-	db.Exec("INSERT INTO refresh_tokens(token, user_id, expires_at) VALUES($1,$2,$3)", refreshToken, userID, expiresAt)
-
+	if _, err := db.Exec("INSERT INTO refresh_tokens(token, user_id, expires_at) VALUES($1,$2,$3)", refreshToken, userID, expiresAt); err != nil {
+		log.Println("Ошибка вставки refresh-токена:", err)
+	}
 	// send cookie + jwt
 	c.SetCookie("refresh_token", refreshToken, int((7 * 24 * time.Hour).Seconds()), "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{"jwt": tokenString})
@@ -160,7 +226,9 @@ func refresh(c *gin.Context) {
 func logout(c *gin.Context) {
 	rt, err := c.Cookie("refresh_token")
 	if err == nil {
-		db.Exec("DELETE FROM refresh_tokens WHERE token = $1", rt)
+		if _, delErr := db.Exec("DELETE FROM refresh_tokens WHERE token = $1", rt); delErr != nil {
+			log.Println("Error deleting refresh token:", delErr)
+		}
 	}
 	c.SetCookie("refresh_token", "", -1, "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out"})
@@ -297,6 +365,15 @@ func addStudent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad data"})
 		return
 	}
+	if s.Name == "" || s.FieldOfStudy == "" || s.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Name, field_of_study, and email are required"})
+		return
+	}
+	if !isValidEmail(s.Email) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email format"})
+		return
+	}
+
 	// handle date
 	var ad interface{}
 	if s.AgreementDate == nil {
@@ -324,6 +401,15 @@ func updateStudent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad data"})
 		return
 	}
+	if s.Name == "" || s.FieldOfStudy == "" || s.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Name, field_of_study, and email are required"})
+		return
+	}
+	if !isValidEmail(s.Email) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email format"})
+		return
+	}
+
 	// handle date
 	var ad interface{}
 	if s.AgreementDate == nil {
@@ -352,4 +438,9 @@ func deleteStudent(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Deleted"})
+}
+
+func isValidEmail(email string) bool {
+	re := regexp.MustCompile(`^[\w.-]+@[\w.-]+\.\w+$`)
+	return re.MatchString(email)
 }
