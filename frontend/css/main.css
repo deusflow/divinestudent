@@ -9,6 +9,10 @@
     --shadow: 0 4px 24px rgba(0,0,0,0.07);
     --radius: 16px;
     --transition: 0.18s cubic-bezier(.4,0,.2,1);
+    --milk: #f6f5ec;
+    --dark-bg: #595959FF;
+    --dark-panel: #353535FF;
+    --dark-text: #F4F4EBE6;
 }
 
 /* Стильный современный шрифт */
@@ -19,6 +23,11 @@ body {
     margin: 20px;
     max-width: 100%;
     transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+body.dark-theme {
+    background: var(--dark-bg);
+    color: var(--dark-text);
 }
 
 .main-logo-90s {
@@ -59,6 +68,14 @@ h1 {
     margin-bottom: 20px;
 }
 
+body.dark-theme h1 {
+    color: var(--dark-text);
+}
+
+
+body.dark-theme .main-logo-90s {
+    filter: brightness(0) invert(1);
+}
 /* Кнопки — строгие, с плавным ховером */
 button {
     padding: 10px 20px;
@@ -214,6 +231,109 @@ label {
     color: #222;
     margin-bottom: 0.2em;
     display: block;
+}
+
+body.dark-theme .anime-panel.panel-90s,
+body.dark-theme .modal-content {
+    background: var(--dark-panel);
+    color: var(--dark-text);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+}
+
+body.dark-theme #students-table,
+body.dark-theme #students-table th,
+body.dark-theme #students-table td {
+    background: var(--dark-panel);
+    color: var(--dark-text);
+    border-bottom: 1px solid #232326;
+}
+
+body.dark-theme #students-table th {
+    background: #232326;
+    color: var(--dark-text);
+}
+
+body.dark-theme #students-table tbody tr:hover {
+    background: #23232a;
+}
+
+body.dark-theme input,
+body.dark-theme textarea,
+body.dark-theme select {
+    background-color: #232326;
+    color: var(--dark-text);
+    border: 1.5px solid #33343a;
+}
+
+body.dark-theme label {
+    color: var(--dark-text);
+}
+
+body.dark-theme .btn-anime {
+    background: var(--dark-panel);
+    color: var(--dark-text);
+    border-color: #44444a;
+}
+body.dark-theme .btn-anime:hover,
+body.dark-theme .btn-anime:focus {
+    background: #111114;
+    color: var(--milk);
+    border-color: #111114;
+}
+body.dark-theme .btn-anime:active {
+    background: #232326;
+    color: var(--milk);
+    border-color: #232326;
+}
+
+/* Theme Switcher Styles */
+#theme-switcher-container {
+    position: fixed;
+    left: 50%;
+    bottom: 32px;
+    transform: translateX(-50%);
+    z-index: 2000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.theme-switch {
+    position: relative;
+    display: inline-block;
+    width: 54px;
+    height: 28px;
+}
+.theme-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #ccc;
+    border-radius: 34px;
+    transition: background 0.3s;
+}
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #fff;
+    border-radius: 50%;
+    transition: transform 0.3s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.13);
+}
+.theme-switch input:checked + .slider {
+    background-color: #222;
+}
+.theme-switch input:checked + .slider:before {
+    transform: translateX(26px);
+    background: #f6f5ec;
 }
 
 /* Адаптив для таблицы */

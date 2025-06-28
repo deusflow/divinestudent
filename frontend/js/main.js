@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupLogin();
     setupStudentModal();
     setupLogout();
+    setupThemeSwitcher();
 });
 
 // Generic fetch function with JWT handling
@@ -221,7 +222,7 @@ function editStudent(id) {
             document.getElementById('time_slot').value = student.time_slot || '';
             document.getElementById('notes').value = student.notes || '';
             document.getElementById('active').checked = student.active || false;
-            // Сохраняем id и режим в модальное окно
+            // Сохр��няем id и режим в модальное окно
             const modal = document.getElementById('student-modal');
             modal.dataset.id = id;
             modal.dataset.mode = 'edit';
@@ -280,4 +281,28 @@ function logout() {
 function setupLogout() {
     const logoutBtn = document.getElementById('logout-btn');
     logoutBtn.onclick = logout;
+}
+
+// Theme toggle logic
+function setupThemeSwitcher() {
+    const toggle = document.getElementById('theme-toggle');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // Load theme from localStorage or system
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.body.classList.add('dark-theme');
+        toggle.checked = true;
+    } else {
+        document.body.classList.remove('dark-theme');
+        toggle.checked = false;
+    }
+    toggle.addEventListener('change', () => {
+        if (toggle.checked) {
+            document.body.classList.add('dark-theme');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.body.classList.remove('dark-theme');
+            localStorage.setItem('theme', 'light');
+        }
+    });
 }
