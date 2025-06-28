@@ -9,191 +9,177 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // postgres driver
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
 	db        *sql.DB
-	jwtSecret = []byte("your-secret-key") // Замените на безопасный ключ
+	jwtSecret = []byte("your-secret-key") // change to real secret
 )
 
-// Claims для JWT-токена
+// Claims for JWT
+// holds user ID and expiry info
 type Claims struct {
 	UserID int `json:"user_id"`
 	jwt.RegisteredClaims
 }
 
-// Структура Student
+// Student holds student data
 type Student struct {
-	ID                  int    `json:"id"`
-	Name                string `json:"name" binding:"required"`
-	FieldOfStudy        string `json:"field_of_study" binding:"required"`
-	Email               string `json:"email" binding:"required"`
-	HasAssignment       *bool  `json:"has_assignment"`
-	CitizenName         string `json:"citizen_name"`
-	ContactPhoneEmail   string `json:"contact_phone_email"`
-	Address             string `json:"address"`
-	AssignmentType      string `json:"assignment_type"`
-	AssignmentCompleted *bool  `json:"assignment_completed"`
-	AgreementDate       string `json:"agreement_date"`
-	TimeSlot            string `json:"time_slot"`
-	Notes               string `json:"notes"`
-	Active              *bool  `json:"active"`
+	ID                  int        `json:"id"`
+	Name                string     `json:"name" binding:"required"`
+	FieldOfStudy        string     `json:"field_of_study" binding:"required"`
+	Email               string     `json:"email" binding:"required"`
+	HasAssignment       *bool      `json:"has_assignment"`
+	CitizenName         string     `json:"citizen_name"`
+	ContactPhoneEmail   string     `json:"contact_phone_email"`
+	Address             string     `json:"address"`
+	AssignmentType      string     `json:"assignment_type"`
+	AssignmentCompleted *bool      `json:"assignment_completed"`
+	AgreementDate       *time.Time `json:"agreement_date,omitempty"`
+	TimeSlot            string     `json:"time_slot"`
+	Notes               string     `json:"notes"`
+	Active              *bool      `json:"active"`
 }
 
 func main() {
+	// connect to db
 	var err error
-	// Подключение к базе данных (обновлено на ваш connection string)
 	db, err = sql.Open("postgres", "postgresql://neondb_owner:npg_QvU0aSNJOK1r@ep-white-breeze-a9bn0pc6-pooler.gwc.azure.neon.tech/neondb?sslmode=require&channel_binding=require")
 	if err != nil {
 		panic(err)
 	}
-	// Проверка соединения
+	// check db
 	if err = db.Ping(); err != nil {
 		panic(err)
 	}
 
-	r := gin.Default()
-
-	// Обслуживание статических файлов
+	r := gin.Default() // router
+	// serve static
 	r.Static("/static", "../frontend")
 
-	// Отдавать index.html для всех не-API маршрутов (SPA)
+	// fallback for SPA
 	r.NoRoute(func(c *gin.Context) {
-		// Если путь начинается с /api или /login, возвращаем 404
-		if c.Request.URL.Path == "/login" || len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+		path := c.Request.URL.Path
+		if path == "/login" || (len(path) >= 4 && path[:4] == "/api") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 			return
 		}
 		c.File("../frontend/index.html")
 	})
 
-	// Публичные маршруты
+	// public routes
 	r.POST("/login", login)
 	r.POST("/refresh", refresh)
 	r.POST("/logout", logout)
 	r.GET("/students", getStudents)
 
-	// Защищенные маршруты
-	protected := r.Group("/")
-	protected.Use(authMiddleware())
+	// protected routes
+	auth := r.Group("/")
+	auth.Use(authMiddleware())
 	{
-		protected.GET("/students/:id", getStudentByID)
-		protected.POST("/students", addStudent)
-		protected.PUT("/students/:id", updateStudent)
-		protected.DELETE("/students/:id", deleteStudent)
+		auth.GET("/students/:id", getStudentByID)
+		auth.POST("/students", addStudent)
+		auth.PUT("/students/:id", updateStudent)
+		auth.DELETE("/students/:id", deleteStudent)
 	}
 
-	r.Run(":8080")
+	r.Run(":8080") // run server
 }
 
-// Функция логина
+// login: verify user and send tokens
 func login(c *gin.Context) {
-	var creds struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
+	var creds struct{ Username, Password string }
 	if err := c.BindJSON(&creds); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный запрос"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad request"})
 		return
 	}
 
 	var userID int
 	var passwordHash string
+	// get user
 	err := db.QueryRow("SELECT id, password_hash FROM users WHERE username = $1", creds.Username).
 		Scan(&userID, &passwordHash)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found", "debug": err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 		return
 	}
-	// Проверяем пароль для любого пользователя
+	// check pass
 	if bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(creds.Password)) != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "password mismatch", "debug": passwordHash, "input": creds.Password})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Wrong password"})
 		return
 	}
 
-	// Генерация JWT-токена
+	// make JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
-		UserID: userID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
-		},
+		UserID:           userID,
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute))},
 	})
 	tokenString, _ := token.SignedString(jwtSecret)
 
-	// Генерация refresh-токена
-	refreshTokenBytes := make([]byte, 32)
-	rand.Read(refreshTokenBytes)
-	refreshToken := hex.EncodeToString(refreshTokenBytes)
+	// make refresh token
+	rtb := make([]byte, 32)
+	rand.Read(rtb)
+	refreshToken := hex.EncodeToString(rtb)
 	expiresAt := time.Now().Add(7 * 24 * time.Hour)
-	_, err = db.Exec("INSERT INTO refresh_tokens (token, user_id, expires_at) VALUES ($1, $2, $3)",
-		refreshToken, userID, expiresAt)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сохранить refresh-токен"})
-		return
-	}
+	db.Exec("INSERT INTO refresh_tokens(token, user_id, expires_at) VALUES($1,$2,$3)", refreshToken, userID, expiresAt)
 
-	// Установка refresh-токена в cookie
+	// send cookie + jwt
 	c.SetCookie("refresh_token", refreshToken, int((7 * 24 * time.Hour).Seconds()), "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{"jwt": tokenString})
 }
 
-// Функция обновления токена
+// refresh: check refresh token and give new jwt
 func refresh(c *gin.Context) {
-	refreshToken, err := c.Cookie("refresh_token")
+	rt, err := c.Cookie("refresh_token")
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh-токен отсутствует"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No refresh token"})
 		return
 	}
 
 	var userID int
-	var expiresAt time.Time
-	err = db.QueryRow("SELECT user_id, expires_at FROM refresh_tokens WHERE token = $1", refreshToken).
-		Scan(&userID, &expiresAt)
-	if err != nil || expiresAt.Before(time.Now()) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Неверный или просроченный refresh-токен"})
+	var exp time.Time
+	// lookup
+	err = db.QueryRow("SELECT user_id, expires_at FROM refresh_tokens WHERE token = $1", rt).
+		Scan(&userID, &exp)
+	if err != nil || exp.Before(time.Now()) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Bad refresh"})
 		return
 	}
 
-	// Генерация нового JWT-токена
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
-		UserID: userID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
-		},
+	// new jwt
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute))},
 	})
-	tokenString, _ := token.SignedString(jwtSecret)
-
-	c.JSON(http.StatusOK, gin.H{"jwt": tokenString})
+	tokStr, _ := token.SignedString(jwtSecret)
+	c.JSON(http.StatusOK, gin.H{"jwt": tokStr})
 }
 
-// Функция выхода
+// logout: remove refresh token
 func logout(c *gin.Context) {
-	refreshToken, err := c.Cookie("refresh_token")
+	rt, err := c.Cookie("refresh_token")
 	if err == nil {
-		db.Exec("DELETE FROM refresh_tokens WHERE token = $1", refreshToken)
+		db.Exec("DELETE FROM refresh_tokens WHERE token = $1", rt)
 	}
 	c.SetCookie("refresh_token", "", -1, "/", "", false, true)
-	c.JSON(http.StatusOK, gin.H{"message": "Выход выполнен"})
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out"})
 }
 
-// Middleware для проверки аутентификации
+// authMiddleware: protect routes
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Отсутствует или неверный токен"})
+		h := c.GetHeader("Authorization")
+		if len(h) < 7 || h[:7] != "Bearer " {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "No token"})
 			c.Abort()
 			return
 		}
-
-		tokenString := authHeader[7:]
-		token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		t, err := jwt.ParseWithClaims(h[7:], &Claims{}, func(t *jwt.Token) (interface{}, error) {
 			return jwtSecret, nil
 		})
-		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Неверный токен"})
+		if err != nil || !t.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Bad token"})
 			c.Abort()
 			return
 		}
@@ -201,11 +187,11 @@ func authMiddleware() gin.HandlerFunc {
 	}
 }
 
-// Получение списка студентов
+// getStudents: fetch all rows
 func getStudents(c *gin.Context) {
-	rows, err := db.Query("SELECT * FROM students")
+	rows, err := db.Query("SELECT * FROM students") // later you can add a full select for each required field
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка базы данных"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
 		return
 	}
 	defer rows.Close()
@@ -214,165 +200,156 @@ func getStudents(c *gin.Context) {
 	for rows.Next() {
 		var s Student
 		var (
-			hasAssignment       sql.NullBool
-			citizenName         sql.NullString
-			contactPhoneEmail   sql.NullString
-			address             sql.NullString
-			assignmentType      sql.NullString
-			assignmentCompleted sql.NullBool
-			agreementDate       sql.NullTime
-			timeSlot            sql.NullString
-			notes               sql.NullString
-			active              sql.NullBool
+			hasAssign sql.NullBool
+			citizen   sql.NullString
+			contact   sql.NullString
+			addr      sql.NullString
+			atype     sql.NullString
+			acomp     sql.NullBool
+			adate     sql.NullTime
+			tslot     sql.NullString
+			notes     sql.NullString
+			active    sql.NullBool
 		)
-		err := rows.Scan(&s.ID, &s.Name, &s.FieldOfStudy, &s.Email, &hasAssignment, &citizenName,
-			&contactPhoneEmail, &address, &assignmentType, &assignmentCompleted, &agreementDate,
-			&timeSlot, &notes, &active)
+		err = rows.Scan(&s.ID, &s.Name, &s.FieldOfStudy, &s.Email, &hasAssign, &citizen,
+			&contact, &addr, &atype, &acomp, &adate, &tslot, &notes, &active)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сканирования", "debug": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Scan error"})
 			return
 		}
-		if hasAssignment.Valid {
-			s.HasAssignment = &hasAssignment.Bool
-		} else {
-			s.HasAssignment = nil
+		// map nulls
+		if hasAssign.Valid {
+			s.HasAssignment = &hasAssign.Bool
 		}
-		if assignmentCompleted.Valid {
-			s.AssignmentCompleted = &assignmentCompleted.Bool
-		} else {
-			s.AssignmentCompleted = nil
+		if acomp.Valid {
+			s.AssignmentCompleted = &acomp.Bool
 		}
 		if active.Valid {
 			s.Active = &active.Bool
-		} else {
-			s.Active = nil
 		}
-		s.CitizenName = citizenName.String
-		s.ContactPhoneEmail = contactPhoneEmail.String
-		s.Address = address.String
-		s.AssignmentType = assignmentType.String
-		if agreementDate.Valid {
-			s.AgreementDate = agreementDate.Time.Format("2006-01-02")
+		s.CitizenName = citizen.String
+		s.ContactPhoneEmail = contact.String
+		s.Address = addr.String
+		s.AssignmentType = atype.String
+		if adate.Valid {
+			s.AgreementDate = &adate.Time
 		} else {
-			s.AgreementDate = ""
+			s.AgreementDate = nil
 		}
-		s.TimeSlot = timeSlot.String
+		s.TimeSlot = tslot.String
 		s.Notes = notes.String
 		students = append(students, s)
 	}
 	c.JSON(http.StatusOK, students)
 }
 
-// Получение одного студента по id
+// getStudentByID: fetch single
 func getStudentByID(c *gin.Context) {
 	id := c.Param("id")
 	var s Student
 	var (
-		hasAssignment       sql.NullBool
-		citizenName         sql.NullString
-		contactPhoneEmail   sql.NullString
-		address             sql.NullString
-		assignmentType      sql.NullString
-		assignmentCompleted sql.NullBool
-		agreementDate       sql.NullTime
-		timeSlot            sql.NullString
-		notes               sql.NullString
-		active              sql.NullBool
+		hasAssign sql.NullBool
+		citizen   sql.NullString
+		contact   sql.NullString
+		addr      sql.NullString
+		atype     sql.NullString
+		acomp     sql.NullBool
+		adate     sql.NullTime
+		tslot     sql.NullString
+		notes     sql.NullString
+		active    sql.NullBool
 	)
-	err := db.QueryRow("SELECT * FROM students WHERE id = $1", id).Scan(
-		&s.ID, &s.Name, &s.FieldOfStudy, &s.Email, &hasAssignment, &citizenName,
-		&contactPhoneEmail, &address, &assignmentType, &assignmentCompleted, &agreementDate,
-		&timeSlot, &notes, &active)
+	err := db.QueryRow("SELECT * FROM students WHERE id=$1", id).Scan(
+		&s.ID, &s.Name, &s.FieldOfStudy, &s.Email, &hasAssign, &citizen,
+		&contact, &addr, &atype, &acomp, &adate, &tslot, &notes, &active)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Student not found", "debug": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 		return
 	}
-	if hasAssignment.Valid {
-		s.HasAssignment = &hasAssignment.Bool
-	} else {
-		s.HasAssignment = nil
+	// map nulls
+	if hasAssign.Valid {
+		s.HasAssignment = &hasAssign.Bool
 	}
-	if assignmentCompleted.Valid {
-		s.AssignmentCompleted = &assignmentCompleted.Bool
-	} else {
-		s.AssignmentCompleted = nil
+	if acomp.Valid {
+		s.AssignmentCompleted = &acomp.Bool
 	}
 	if active.Valid {
 		s.Active = &active.Bool
-	} else {
-		s.Active = nil
 	}
-	s.CitizenName = citizenName.String
-	s.ContactPhoneEmail = contactPhoneEmail.String
-	s.Address = address.String
-	s.AssignmentType = assignmentType.String
-	if agreementDate.Valid {
-		s.AgreementDate = agreementDate.Time.Format("2006-01-02")
+	s.CitizenName = citizen.String
+	s.ContactPhoneEmail = contact.String
+	s.Address = addr.String
+	s.AssignmentType = atype.String
+	if adate.Valid {
+		s.AgreementDate = &adate.Time
 	} else {
-		s.AgreementDate = ""
+		s.AgreementDate = nil
 	}
-	s.TimeSlot = timeSlot.String
+	s.TimeSlot = tslot.String
 	s.Notes = notes.String
 	c.JSON(http.StatusOK, s)
 }
 
-// Добавление студента
+// addStudent: insert new
 func addStudent(c *gin.Context) {
 	var s Student
 	if err := c.BindJSON(&s); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверные данные"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad data"})
 		return
 	}
-
-	agreementDate := interface{}(s.AgreementDate)
-	if s.AgreementDate == "" {
-		agreementDate = nil
+	// handle date
+	var ad interface{}
+	if s.AgreementDate == nil {
+		ad = nil
+	} else {
+		ad = *s.AgreementDate
 	}
-	_, err := db.Exec(`INSERT INTO students (name, field_of_study, email, has_assignment, citizen_name, 
-		contact_phone_email, address, assignment_type, assignment_completed, agreement_date, time_slot, notes, active) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+	_, err := db.Exec(`INSERT INTO students (name, field_of_study, email, has_assignment, citizen_name,
+		contact_phone_email, address, assignment_type, assignment_completed, agreement_date, time_slot, notes, active)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
 		s.Name, s.FieldOfStudy, s.Email, s.HasAssignment, s.CitizenName, s.ContactPhoneEmail, s.Address,
-		s.AssignmentType, s.AssignmentCompleted, agreementDate, s.TimeSlot, s.Notes, s.Active)
+		s.AssignmentType, s.AssignmentCompleted, ad, s.TimeSlot, s.Notes, s.Active)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось добавить студента", "debug": err.Error(), "student": s})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Insert fail"})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "Студент добавлен"})
+	c.JSON(http.StatusCreated, gin.H{"message": "Added"})
 }
 
-// Обновление студента (уже есть в вашем коде)
+// updateStudent: update existing
 func updateStudent(c *gin.Context) {
 	id := c.Param("id")
 	var s Student
 	if err := c.BindJSON(&s); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверные данные"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad data"})
 		return
 	}
-
-	agreementDate := interface{}(s.AgreementDate)
-	if s.AgreementDate == "" {
-		agreementDate = nil
+	// handle date
+	var ad interface{}
+	if s.AgreementDate == nil {
+		ad = nil
+	} else {
+		ad = *s.AgreementDate
 	}
-
-	_, err := db.Exec(`UPDATE students SET name=$1, field_of_study=$2, email=$3, has_assignment=$4, 
-		citizen_name=$5, contact_phone_email=$6, address=$7, assignment_type=$8, assignment_completed=$9, 
+	_, err := db.Exec(`UPDATE students SET name=$1, field_of_study=$2, email=$3, has_assignment=$4,
+		citizen_name=$5, contact_phone_email=$6, address=$7, assignment_type=$8, assignment_completed=$9,
 		agreement_date=$10, time_slot=$11, notes=$12, active=$13 WHERE id=$14`,
 		s.Name, s.FieldOfStudy, s.Email, s.HasAssignment, s.CitizenName, s.ContactPhoneEmail, s.Address,
-		s.AssignmentType, s.AssignmentCompleted, agreementDate, s.TimeSlot, s.Notes, s.Active, id)
+		s.AssignmentType, s.AssignmentCompleted, ad, s.TimeSlot, s.Notes, s.Active, id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить студента", "debug": err.Error(), "student": s})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Update fail"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Студент обновлен"})
+	c.JSON(http.StatusOK, gin.H{"message": "Updated"})
 }
 
-// Удаление студента
+// deleteStudent: delete record
 func deleteStudent(c *gin.Context) {
 	id := c.Param("id")
-	_, err := db.Exec("DELETE FROM students WHERE id = $1", id)
+	_, err := db.Exec("DELETE FROM students WHERE id=$1", id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось удалить студента"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete fail"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Студент удален"})
+	c.JSON(http.StatusOK, gin.H{"message": "Deleted"})
 }
